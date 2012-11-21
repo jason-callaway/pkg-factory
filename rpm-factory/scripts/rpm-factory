@@ -8,22 +8,27 @@ typeset -i save_arg_count=0
 echo "Processing given arguments"
 
 # process the argument list as key/value pairs and source them
-for arg in $*; do
+TMPFILE=/tmp/rpm-factory.$RANDOM
+echo "$*" | sed -e "s/--/\\n--/g" > $TMPFILE
+while read arg; do
 
         # extract the variable name, value, and then make it available using eval
         var=`echo "$arg" | sed -e "s/^--//" | sed -e "s/=.*//"`
         value=`echo "$arg" | sed -e "s/^--.*=//"`
 
-	# don't track "reset" args for the build script
-	if [[ "$var" != "reset"* ]]; then
+	if [ "$var" ]; then 
 
-		save_arg_count=$save_arg_count+1
-	fi
+		# don't track "reset" args for the build script
+		if [[ "$var" != "reset"* ]]; then
+
+			save_arg_count=$save_arg_count+1
+		fi
 	
-        echo " Using $var = $value"
-        eval $var=$value
+	        echo " Using $var = $value"
+		export $var="$value"
+	fi
 
-done
+done < $TMPFILE
 
 # Show usage if required args aren't given
 if [[ ! "$rpm_name" || ! "$rpm_arch" ]]; then
@@ -146,31 +151,38 @@ if [[ ! -e $rpm_build_script || "$reset_build_script" == "TRUE" || "$reset_build
 	typeset -i count=0
 
 	# process the argument list as key/value pairs and concatenate them to the build script
-	for arg in $*; do
+	while read arg; do
 
-		count=$count+1
 	        # extract the variable name & value
         	var=`echo "$arg" | sed -e "s/^--//" | sed -e "s/=.*//"`
 	        value=`echo "$arg" | sed -e "s/^--.*=//"`
 
-		# capture anything but a "reset" argument
-		if [[ "$var" != "reset"* ]]; then
+		if [ "$var" ]; then
 
-			# capture the argument so we can re-use it
-			arg="--${var}=${value}"
+			count=$count+1
 	
-			# if we're not the last arg, include a continuous line indicator character ('\') 
-			if [ $save_arg_count -ne $count ]; then
-				arg="$arg \\"
+			# capture anything but a "reset" argument
+			if [[ "$var" != "reset"* ]]; then
+
+				# capture the argument so we can re-use it
+				arg="--${var}=\"${value}\""
+	
+				# if we're not the last arg, include a continuous line indicator character ('\') 
+				if [ $save_arg_count -ne $count ]; then
+					arg="$arg \\"
+				fi
+
+				echo "$arg" >> $rpm_build_script
 			fi
-
-			echo "$arg" >> $rpm_build_script
 		fi
-	done
-	
+
+	done < $TMPFILE
 
 	chmod 550 $rpm_build_script
 fi
+
+# get rid of temp file used to store the args list
+rm -f $TMPFILE
 
 # configure version info of this particular build
 typeset -i old_release_num=`grep 'Release:' $rpm_spec_file | cut -d' ' -f2 | cut -d'.' -f1`
