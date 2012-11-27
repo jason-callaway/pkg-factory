@@ -226,7 +226,7 @@ fi
 echo "Running rpmbuild"
 echo "  SPEC file: $rpm_spec_file"
 if [ ! -d $rpm_base/history ]; then mkdir -p $rpm_base/history; fi
-mv $rpm_base/$rpm_mask $rpm_base/history/
+mv $rpm_base/$rpm_mask $rpm_base/history/ >/dev/null 2>&1
 
 # call rpmbuild to make the RPM
 rpmbuild \
@@ -247,7 +247,7 @@ alias_file="/root/.bashrc"
 alias_name="build_${rpm_name}"
 echo "Adding alias: $alias_name to $alias_file"
 echo "  To re-run this build, source $alias_file then execute '$alias_name' from the shell"
-sed -i -e "/^alias $alias_name.*$/d" $alias_file
+sed -i -e "/^alias $alias_name=.*$/d" $alias_file
 echo "alias $alias_name='$rpm_build_script'" >> $alias_file
 
 # Copy the package to an archive destination (if given) and move any older packages into a history dir
