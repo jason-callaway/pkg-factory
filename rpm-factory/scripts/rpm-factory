@@ -5,11 +5,12 @@
 # track the count of args we need to retain for build script creation
 typeset -i save_arg_count=0
 
-echo "Processing given arguments"
+echo "Processing arguments"
 
 # process the argument list as key/value pairs and source them
-TMPFILE=/tmp/rpm-factory.$RANDOM
-echo "$*" | sed -e "s/--/\\n--/g" > $TMPFILE
+export RF_TMPFILE=/tmp/rpm-factory.$RANDOM
+# separate args to one per line, dump to tempfile
+echo "$*" | sed -e "s/--/\\n--/g" > $RF_TMPFILE
 while read arg; do
 
         # extract the variable name, value, and then make it available using eval
@@ -28,7 +29,7 @@ while read arg; do
 		export $var="$value"
 	fi
 
-done < $TMPFILE
+done < $RF_TMPFILE
 
 # Show usage if required args aren't given
 if [[ ! "$rpm_name" || ! "$rpm_arch" ]]; then
@@ -52,7 +53,14 @@ if [[ ! "$rpm_name" || ! "$rpm_arch" ]]; then
 	echo "  --rpmbuild_quiet=bool      Toggles quiet rpmbuild call ('FALSE' to disable, default = 'TRUE')"
 	echo "  --rsync_quet=bool 	   Toggles quiet rsync call ('FALSE' to disable, default = 'TRUE')"
 	echo "  --summary=text       	   RPM summary (recommend encasing arg in quotes)"
-	exit 1
+	rf_exit 1
+fi
+
+# copy the baseline RPM macros file to the calling user's homedir if it doesn't already exist
+if [ ! -f ~/.rpmmacros ]; then
+
+        echo "Copying base RPM macros file to ~/.rpmmacros"
+        cp $RF_DATA_DIR/rpmmacros ~/.rpmmacros
 fi
 
 RPM_FULL_NAME="$rpm_name.$RF_DISTRO.$rpm_arch"
@@ -176,13 +184,10 @@ if [[ ! -e $rpm_build_script || "$reset_build_script" == "TRUE" || "$reset_build
 			fi
 		fi
 
-	done < $TMPFILE
+	done < $RF_TMPFILE
 
 	chmod 550 $rpm_build_script
 fi
-
-# get rid of temp file used to store the args list
-rm -f $TMPFILE
 
 # configure version info of this particular build
 typeset -i old_release_num=`grep 'Release:' $rpm_spec_file | cut -d' ' -f2 | cut -d'.' -f1`
@@ -218,7 +223,7 @@ $rsync_quiet \
 if [ $? -ne 0 ]; then
 	
 	echo "rsync from $basedir to $build_home failed."
-	exit 1
+	rf_exit 1
 fi
 
 # All prep work should be complete; build the package and move any older ones into a history
@@ -231,6 +236,7 @@ mv $rpm_base/$rpm_mask $rpm_base/history/ >/dev/null 2>&1
 # call rpmbuild to make the RPM
 rpmbuild \
 -bb \
+-buildroot=$build_home \
 --target=$rpm_arch \
 $rpmbuild_quiet \
 $rpm_spec_file
@@ -239,11 +245,11 @@ $rpm_spec_file
 if [ $? -ne 0 ]; then
 
 	echo "rpmbuild command failed"
-	exit 2
+	rf_exit 2
 fi
 
 # Create an alias so we could build this RPM again quickly if desired
-alias_file="/root/.bashrc"
+alias_file="~/.bashrc"
 alias_name="build_${rpm_name}"
 echo "Adding alias: $alias_name to $alias_file"
 echo "  To re-run this build, source $alias_file then execute '$alias_name' from the shell"
@@ -259,8 +265,8 @@ if [ "$archive_server_ip" ]; then
 	fi
 
 	echo "Copying $rpm_mask to $archive_server_ip:$archive_server_dir"
-	ssh -q root@$archive_server_ip "mkdir -p $archive_server_dir/history"
-	ssh -q root@$archive_server_ip "mv $archive_server_dir/$rpm_mask $archive_server_dir/history"
+	ssh -q $archive_server_ip "mkdir -p $archive_server_dir/history"
+	ssh -q $archive_server_ip "mv $archive_server_dir/$rpm_mask $archive_server_dir/history"
 	scp $rpm_file $archive_server_ip:$archive_server_dir
 
 fi

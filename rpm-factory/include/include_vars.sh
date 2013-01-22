@@ -11,7 +11,7 @@ export RF_INCLUDE_DIR=$RF_BASE_DIR/include
 export RF_DEFAULT_RPM_MACROS=$RF_DATA_DIR/rpmmacros
 
 # Directories for rpm build
-export RF_BUILD_ROOT="/root/rpmbuild"
+export RF_BUILD_ROOT="/opt/rpmbuild"
 export RF_BUILD_DIR=$RF_BUILD_ROOT/BUILD
 export RF_BUILD_SCRIPT_DIR=$RF_BUILD_ROOT/SCRIPTS
 export RF_BUILD_SPEC_DIR=$RF_BUILD_ROOT/SPECS
