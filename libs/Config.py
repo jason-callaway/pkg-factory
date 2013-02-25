@@ -1,6 +1,6 @@
 import os
 
-class config:
+class Config:
 
     # Base location for any configuration files
     data_dir = "/etc/rpm-factory"

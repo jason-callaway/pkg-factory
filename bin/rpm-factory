@@ -1,44 +1,11 @@
 #!/usr/bin/python
-from rpm-factory import input
-from rpm-factory import processor
-my_processor = processor(input())
-processor.main()
+from rpm-factory import Input
+from rpm-factory import Processor
+my_processor = Processor(Input())
+Processor.main()
 
 """
-#!/bin/bash
 
-. /opt/rpm-factory/include/include_vars.sh
-
-# track the count of args we need to retain for build script creation
-typeset -i save_arg_count=0
-
-echo "Processing arguments"
-
-# process the argument list as key/value pairs and source them
-export RF_TMPFILE=/tmp/rpm-factory.$RANDOM
-# separate args to one per line, dump to tempfile
-echo "$*" | sed -e "s/--/\\n--/g" > $RF_TMPFILE
-while read arg; do
-
-        # extract the variable name, value, and then make it available using eval
-        var=`echo "$arg" | sed -e "s/^--//" | sed -e "s/=.*//"`
-        value=`echo "$arg" | sed -e "s/^--.*=//"`
-
-	if [ "$var" ]; then 
-
-		# don't track "reset" args for the build script
-		if [[ "$var" != "reset"* ]]; then
-
-			save_arg_count=$save_arg_count+1
-		fi
-	
-	        echo " Using $var = $value"
-		export $var="$value"
-	fi
-
-done < $RF_TMPFILE
-
-# Show usage if required args aren't given
 if [[ ! "$rpm_name" || ! "$rpm_arch" ]]; then
 
 	echo "Usage: rpm-factory <args>"
