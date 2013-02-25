@@ -1,3 +1,10 @@
+#!/usr/bin/python
+from rpm-factory import input
+from rpm-factory import processor
+my_processor = processor(input())
+processor.main()
+
+"""
 #!/bin/bash
 
 . /opt/rpm-factory/include/include_vars.sh
@@ -288,3 +295,4 @@ if [ "$repo_dir" ]; then
 	cd $repo_dir
 	createrepo ./
 fi
+"""

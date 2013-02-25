@@ -29,12 +29,9 @@ export DONT_STRIP=1
 #RPM_DIR
 
 %preun
-#RPM_DIR/scripts/rpm_preun.sh
 
 %postun
-#RPM_DIR/scripts/rpm_postun.sh
 
 %pre
 
 %post
-#RPM_DIR/scripts/rpm_post.sh
