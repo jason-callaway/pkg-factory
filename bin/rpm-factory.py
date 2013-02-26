@@ -1,41 +1,13 @@
-#!/usr/bin/python
+"""#!/usr/bin/python"""
 from rpm-factory import Input
 from rpm-factory import Processor
-my_processor = Processor(Input())
-Processor.main()
+
+input = Input()
+processor = Processor(input=input)
+processor.main()
 
 """
 
-if [[ ! "$rpm_name" || ! "$rpm_arch" ]]; then
-
-	echo "Usage: rpm-factory <args>"
-	echo " required args:"
-	echo "  --rpm_arch=arch      	   RPM host architecture ('i686', 'x86_64' or 'noarch')"
-	echo "  --rpm_name=name      	   RPM name"
-	echo ""
-	echo " optional args:"
-	echo "  --archive_server_ip=ip     Archive Server IP address"
-	echo "  --archive_server_dir=dir   Archive Server directory"
-	echo "  --basedir=dir       	   RPM content base directory"
-	echo "  --description=text   	   RPM description (recommend encasing arg in quotes)"
-	echo "  --license=text       	   Software license type (default = 'Free')"
-	echo "  --pkg_group=group    	   Repo package group name (default = 'none')"
-	echo "  --repo_dir=dir             Repo directory to copy built RPM"
-	echo "  --reset_build_script=bool  Resets build script using given args ('TRUE' to enable, default = 'FALSE')"
-	echo "  --reset_spec_file=bool     Resets SPEC file using template ('TRUE' to enable, default = 'FALSE')"
-	echo "  --requires=rpmlist   	   Comma separated list of required RPMs"
-	echo "  --rpmbuild_quiet=bool      Toggles quiet rpmbuild call ('FALSE' to disable, default = 'TRUE')"
-	echo "  --rsync_quet=bool 	   Toggles quiet rsync call ('FALSE' to disable, default = 'TRUE')"
-	echo "  --summary=text       	   RPM summary (recommend encasing arg in quotes)"
-	rf_exit 1
-fi
-
-# copy the baseline RPM macros file to the calling user's homedir if it doesn't already exist
-if [ ! -f ~/.rpmmacros ]; then
-
-        echo "Copying base RPM macros file to ~/.rpmmacros"
-        cp $RF_DATA_DIR/rpmmacros ~/.rpmmacros
-fi
 
 RPM_FULL_NAME="$rpm_name.$RF_DISTRO.$rpm_arch"
 
@@ -48,39 +20,6 @@ if [ ! "$basedir" ]; then
 	echo " Using default basedir = $basedir"
 fi
 
-if [ ! "$pkg_group" ]; then
-
-	pkg_group=none
-	echo " Using default pkg_group = $pkg_group"
-fi
-
-if [ ! "$license" ]; then
-	
-	license=Free
-	echo " Using default license = $license"
-fi
-
-if [ ! "$summary" ]; then
-
-	summary=$rpm_name
-	echo " Using default summary = $rpm_name"
-fi
-
-rpmbuild_quiet="--quiet"
-
-if [[ "$rpmbuild_quiet" == "FALSE" || "$rpmbuild_quiet" == "false" ]]; then
-
-	rpmbuild_quiet=""
-	echo "Using verbose rpmbuild"
-fi
-
-rsync_quiet="--quiet"
-
-if [[ "$rsync_quiet" == "FALSE" || "$rsync_quiet" == "false" ]]; then
-
-        rsync_quiet=""
-        echo "Using verbose rsync"
-fi
 
 rpm_base=$RF_BUILD_RPM_DIR/$rpm_arch
 rpm_mask="${rpm_name}-[0-9]*.${RF_DISTRO}.${rpm_arch}.rpm"
