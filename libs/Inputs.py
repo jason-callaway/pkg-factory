@@ -23,6 +23,11 @@ class Inputs:
         parser.add_argument("--rsync_verbose",      help="Enables verbose output of rsync", action='store_true')
         parser.add_argument("--summary",            metavar="<text>",       help="RPM summary (recommend encasing arg in quotes)")
         
+        parser.parse_args(["foo", "bar"], self.namespace)
+        
+        # TODO: show help if args are not valid...
+        #parser.print_help()
+
         if self.namespace.basedir is None:
             self.namespace.basedir = "/opt/" + self.namespace.rpm_name
         
@@ -39,11 +44,3 @@ class Inputs:
             self.namespace.summary = self.namespace.rpm_name
         
         
-        
-        
-        print self.namespace.basedir
-        #parser.print_help()
-
-        
-    
-Inputs()

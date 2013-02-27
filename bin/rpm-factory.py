@@ -1,15 +1,14 @@
-"""#!/usr/bin/python"""
-from rpm-factory import Input
-from rpm-factory import Processor
+#!/usr/bin/python
 
-input = Input()
-processor = Processor(input=input)
-processor.main()
+from Inputs import Inputs
+from Processor import Processor
+my_processor = Processor(inputs=Inputs())
+my_processor.main()
 
 """
 
 
-RPM_FULL_NAME="$rpm_name.$RF_DISTRO.$rpm_arch"
+
 
 echo "Configuring any unset but required vars for build: $RPM_FULL_NAME"
 

@@ -23,7 +23,10 @@ class Config:
     
     # list of all the storage dirs (used mainly for deploying rpm-factory)
     storage_dirs = [ build_dir, srpm_dir, spec_dir, rpm_dir ]
-    
+
+    def __init__(self):
+        print "here" #pass
+        
     def install(self):
 
         for path in self.storage_dirs:
