@@ -15,7 +15,11 @@ class Processor(object):
         self.inputs = inputs
         
     def main(self):
-        pass
+
+	if inputs.package_type == 'rpm':
+            pass 
+	else:
+            print "Package type not supported: ".inputs.package_type
         #print platform.node()
         #rpm_full_name = self.inputs.rpm_name + 
         
