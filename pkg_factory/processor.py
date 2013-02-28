@@ -16,13 +16,21 @@ class Processor(object):
         
     def main(self):
 
+        
+
+
 	if inputs.package_type == 'rpm':
-            pass 
+
+            # Update or create the SPEC file as needed
+            if os.path.exists(inputs.rpm_spec_file_path):
+                if inputs.verbose == True:
+                    print "RPM SPEC file exists: " + inputs.rpm_spec_file_path + " - updating"
+
+                spec_file_handle = open(inputs.rpm_spec_file_path)
+                spec_file_content = spec_file_handle.read()
+
 	else:
             print "Package type not supported: ".inputs.package_type
-        #print platform.node()
-        #rpm_full_name = self.inputs.rpm_name + 
-        
         
         
         #my_config = Config()
@@ -33,15 +41,7 @@ class Processor(object):
         
         echo "Configuring any unset but required vars for build: $RPM_FULL_NAME"
 
-# Set the RPM home dir to the default if not yet set
-if [ ! "$basedir" ]; then
 
-    basedir="/opt/$rpm_name"
-    echo " Using default basedir = $basedir"
-fi
-
-
-rpm_base=$RF_BUILD_RPM_DIR/$rpm_arch
 rpm_mask="${rpm_name}-[0-9]*.${RF_DISTRO}.${rpm_arch}.rpm"
 rpm_spec_file=$RF_BUILD_SPEC_DIR/${rpm_name}.${RF_DISTRO}.${rpm_arch}.spec
 rpm_build_script=$RF_BUILD_SCRIPT_DIR/build_${rpm_name}.sh
