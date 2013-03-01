@@ -25,7 +25,7 @@ class Inputs(object):
         
         parser.add_argument("pkg_name",                                     help="Package name")
         parser.add_argument("--arch",               metavar="<text>",       help="Package host architecture ('i686', 'x86_64' or 'noarch') - defaults to 'uname -m'")
-	parser.add_argument("--build_dir",          metavar="<dir>",        help="Build directory - this is where temporary files and the created package are stored - defaults to ~/pkg_factory")
+        parser.add_argument("--build_dir",          metavar="<dir>",        help="Build directory - this is where temporary files and the created package are stored - defaults to ~/pkg_factory")
         parser.add_argument("--build_verbose",                              help="Enables verbose output of low level package build steps", action='store_true')
         parser.add_argument("--description",        metavar="<text>",       help="Package description")
         parser.add_argument("--license",            metavar="<text>",       help="Software license type (default = 'Free')")
@@ -46,7 +46,7 @@ class Inputs(object):
         parser.parse_args(namespace=self.namespace)
 
         """ Detect the linux distribution and set vars accordingly """
-        distro_name, distro_version, distro_qualifier, distro_alias = platform.linux_distribution(full_distribution_name=False)
+        distro_name, distro_version, distro_alias = platform.linux_distribution(full_distribution_name=False)
         for rpm_distro in self.rpm_distros:
             if rpm_distro == distro_name:
                 self.namespace.package_type = 'rpm'
@@ -71,7 +71,7 @@ class Inputs(object):
         if self.namespace.verbose == True:
             print "Architecture: " + self.namespace.arch
 
-	if self.namespace.build_dir is None:
+        if self.namespace.build_dir is None:
             self.namespace.build_dir = os.path.expanduser("~") + "/pkg_factory"
 
         if self.namespace.verbose == True:
@@ -102,20 +102,20 @@ class Inputs(object):
         if self.namespace.verbose == True:
             print "Package Group: " + self.namespace.package_group
 
-	if self.namespace.package_type is 'rpm':
+        if self.namespace.package_type is 'rpm':
             rpm_spec_file_path = ""
-	    rpm_build_dir = self.namespace.build_dir + "/BUILD"
+            rpm_build_dir = self.namespace.build_dir + "/BUILD"
             rpm_buildroot_dir = self.namespace.build_dir + "/BUILDROOT"
             rpm_rpms_dir = self.namespace.build_dir + "/RPMS/" + self.namespace.arch
             rpm_sources_dir = self.namespace.build_dir + "/SOURCES"
             rpm_srpms_dir = self.namespace.build_dir + "/SRPMS"
 
-            if self.namespace.verbose == True:
-                print "RPM build dir: " + rpm_build_dir
-                print "RPM bulid root dir: " + rpm_buildroot_dir
-                print "RPM sources dir: " + rpm_sources_dir
+        if self.namespace.verbose == True:
+            print "RPM build dir: " + rpm_build_dir
+            print "RPM bulid root dir: " + rpm_buildroot_dir
+            print "RPM sources dir: " + rpm_sources_dir
             
-	if self.namespace.verbose == True:
+        if self.namespace.verbose == True:
             print "Package Type: " + self.namespace.package_type
 
         if self.namespace.license is None:
