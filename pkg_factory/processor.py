@@ -3,124 +3,130 @@ Created on Feb 27, 2013
 
 @author: joe
 '''
+import os
+import subprocess
+import sys
+
 
 class Processor(object):
     '''        
     classdocs
     '''
 
-    inputs = None
+    config = None
     
-    def __init__(self, inputs):
-        self.inputs = inputs
+    def __init__(self, config):
+        self.config = config
         
     def main(self):
+        
+        # Create all the necessary dirs for the package build if they don't already exist
+        self.config.create_build_dirs()
+        
+        if self.config.package_type == 'deb':
+            print "Debian package building not yet implemented"
+            sys.exit(1)
 
+        elif self.config.package_type == 'rpm':           
+
+            self.do_build_rpm()
+    
+        else:
+            print "Package type not supported: " + self.config.package_type
+            sys.exit(3);
+        
         
 
-
-	if inputs.package_type == 'rpm':
-
-            # Update or create the SPEC file as needed
-            if os.path.exists(inputs.rpm_spec_file_path):
-                if inputs.verbose == True:
-                    print "RPM SPEC file exists: " + inputs.rpm_spec_file_path + " - updating"
-
-                spec_file_handle = open(inputs.rpm_spec_file_path)
-                spec_file_content = spec_file_handle.read()
-
-	else:
-            print "Package type not supported: ".inputs.package_type
+            
         
         
-        #my_config = Config()
-        #with open(my_config.spec_template) as f:
-        #spec_content = f.read()
+        """
+         Copy the created package to a local repository, resolving any missing dependencies
+         like directory creation
+        """
+#        if self.config.local_repo_dir:
+#            copy(self.config.rpm_file_path, self.config.local_repo_dir)
 
+        
+            
+
+
+
+        if self.config.save_build_script:
+            self.save_build_script()
+            
+        sys.exit(0)
+
+    def do_build_deb(self):
+        pass
+    
+    def do_build_rpm(self):
+
+        # Update or create the SPEC file as needed
+        if os.path.exists(self.config.rpm_spec_file) and self.config.reset_config_file is not True:
+
+            print "RPM SPEC file exists: " + self.config.rpm_spec_file + " - updating"
+            spec_file_handle = open(self.config.rpm_spec_file)
+            spec_file_content = spec_file_handle.read()
+            
+            #TODO: modify spec file in place with new version number(s)
+            
+            
+
+        else:
+            print "Creating RPM SPEC file: " + self.config.rpm_spec_file + " from template"
+            
+            try:
+                spec_file_handle = open(self.config.rpm_spec_file, 'w+')
+                spec_file_handle.write(self.config.get_rpm_spec())
+                spec_file_handle.close()
+
+            except Exception as e:
+                print "Could not create RPM SPEC file: " + self.config.rpm_spec_file + ": " + e.strerror 
+                sys.exit(2)
+                    
+        # do the rsync here (if needed)
+        # do the package build here
+        try:
+            
+            rpmbuild_args = [
+                             'rpmbuild',
+                             '-bb',
+                             '--target=' + self.config.arch,
+                             '--buildroot='+ self.config.rpm_build_root_dir,
+                             self.config.rpm_spec_file
+                             ]
+            
+            if not self.config.build_verbose:
+                rpmbuild_args.append('--quiet')
+
+            subprocess.check_call(rpmbuild_args)
+            #TODO: something with the rpmbuild cmd output - check self.config.verbose
+            
+        except subprocess.CalledProcessError as e:
+            
+            print "Failed to build RPM"
+            print " exited with return code: " + str(e.returncode)
+            sys.exit(4)
+
+
+    def save_build_script(self):
+        content = "pkg-factory \\ \n"
+        for key,arg in enumerate(sys.argv):
+            if key > 0 and arg != "--save_build_script":
+                content += arg + " \\ \n "
+        
+        try: 
+            spec_file_handle = open(self.config.build_script_path, 'w+')
+            spec_file_handle.write(content)
+        except Exception as e:
+            print "Could not create package build script: " + self.config.build_script_path + ": " + e.strerror 
+            sys.exit(2)
+            
+        print "Saved build script as " + self.config.build_script_path
 """        
         
-        echo "Configuring any unset but required vars for build: $RPM_FULL_NAME"
 
-
-rpm_mask="${rpm_name}-[0-9]*.${RF_DISTRO}.${rpm_arch}.rpm"
-rpm_spec_file=$RF_BUILD_SPEC_DIR/${rpm_name}.${RF_DISTRO}.${rpm_arch}.spec
-rpm_build_script=$RF_BUILD_SCRIPT_DIR/build_${rpm_name}.sh
-
-# create the RPM SPEC file using the given args (as transformed into vars)
-if [[ ! -e $rpm_spec_file || "$reset_spec_file" == "TRUE" || "$reset_spec_file" == "true" ]]; then
-
-    echo "Creating SPEC file ($rpm_spec_file) from template"
-    cat $RF_TEMPLATE_SPEC_FILE \
-    | sed -e "s/#ARCH/$rpm_arch/g" \
-    | sed -e "s=#DESCRIPTION=$description=g" \
-    | sed -e "s,#DISTRO,$RF_DISTRO,g" \
-    | sed -e "s/#GROUP/$pkg_group/g"  \
-    | sed -e "s=#LICENSE=$license=g"  \
-    | sed -e "s/#REQUIRES/$requires/g" \
-    | sed -e "s,#RPM_DIR,$basedir,g"  \
-    | sed -e "s/#RPM_NAME/$rpm_name/g" \
-    | sed -e "s=#SUMMARY=$summary=g" \
-     > $rpm_spec_file
-
-    # If there are any package requirements (dependencies), enable them
-    if [ "$requires" ]; then
-        sed -i -e "s/^#Requires:/Requires:/" $rpm_spec_file
-    fi
-fi
-
-# create a package skeleton if the base dir does not exist - gives the devekioer
-# a head start
-if [ ! -d $basedir ]; then
-
-    echo "Creating $basedir"
-    mkdir -p $basedir
-
-    echo "Creating RPM skeleton using rpm-factory defaults"
-    mkdir -p $basedir/scripts $basedir/include $basedir/data
-    touch $basedir/scripts/rpm_preun.sh
-    touch $basedir/scripts/rpm_post.sh
-    touch $basedir/scripts/rpm_postun.sh
-fi
-
-# create a build script which captures this usage of rpm-factory
-if [[ ! -e $rpm_build_script || "$reset_build_script" == "TRUE" || "$reset_build_script" == "true" ]]; then
-
-    echo "Creating RPM build script from given args ($rpm_build_script)"
-    cat $RF_DATA_DIR/template.sh > $rpm_build_script
-
-    # keep track of the number of args
-    typeset -i count=0
-
-    # process the argument list as key/value pairs and concatenate them to the build script
-    while read arg; do
-
-            # extract the variable name & value
-            var=`echo "$arg" | sed -e "s/^--//" | sed -e "s/=.*//"`
-            value=`echo "$arg" | sed -e "s/^--.*=//"`
-
-        if [ "$var" ]; then
-
-            count=$count+1
-    
-            # capture anything but a "reset" argument
-            if [[ "$var" != "reset"* ]]; then
-
-                # capture the argument so we can re-use it
-                arg="--${var}=\"${value}\""
-    
-                # if we're not the last arg, include a continuous line indicator character ('\') 
-                if [ $save_arg_count -ne $count ]; then
-                    arg="$arg \\"
-                fi
-
-                echo "$arg" >> $rpm_build_script
-            fi
-        fi
-
-    done < $RF_TMPFILE
-
-    chmod 550 $rpm_build_script
-fi
 
 # configure version info of this particular build
 typeset -i old_release_num=`grep 'Release:' $rpm_spec_file | cut -d' ' -f2 | cut -d'.' -f1`
@@ -128,10 +134,12 @@ typeset -i new_release_num=$old_release_num+1
 new_release="${new_release_num}.$RF_DISTRO"
 build_version="`grep 'Version: ' $rpm_spec_file | cut -d' ' -f2`-$new_release"
 # configure metadata for rpm-build
+
+
 build_name="${rpm_name}-${build_version}.${rpm_arch}"
-build_base="$RF_BUILD_ROOT/BUILDROOT"
-build_dir="${build_base}/${build_name}"
-build_home="${build_dir}/${basedir}"
+
+
+
 rpm_file="$RF_BUILD_RPM_DIR/$rpm_arch/${build_name}.rpm"
 
 # auto-increment the release/build number in the SPEC file
@@ -174,35 +182,7 @@ rpmbuild \
 $rpmbuild_quiet \
 $rpm_spec_file
 
-# Evaluate success of the rpm build
-if [ $? -ne 0 ]; then
 
-    echo "rpmbuild command failed"
-    rf_exit 2
-fi
-
-# Create an alias so we could build this RPM again quickly if desired
-alias_file="~/.bashrc"
-alias_name="build_${rpm_name}"
-echo "Adding alias: $alias_name to $alias_file"
-echo "  To re-run this build, source $alias_file then execute '$alias_name' from the shell"
-sed -i -e "/^alias $alias_name=.*$/d" $alias_file
-echo "alias $alias_name='$rpm_build_script'" >> $alias_file
-
-# Copy the package to an archive destination (if given) and move any older packages into a history dir
-if [ "$archive_server_ip" ]; then
-
-    if [ ! "$archive_server_dir" ]; then
-
-        archive_server_dir=/var/tmp
-    fi
-
-    echo "Copying $rpm_mask to $archive_server_ip:$archive_server_dir"
-    ssh -q $archive_server_ip "mkdir -p $archive_server_dir/history"
-    ssh -q $archive_server_ip "mv $archive_server_dir/$rpm_mask $archive_server_dir/history"
-    scp $rpm_file $archive_server_ip:$archive_server_dir
-
-fi
 
 # Copy the package to the repository (if given) and rebuild its metadata
 if [ "$repo_dir" ]; then
