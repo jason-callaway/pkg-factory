@@ -158,7 +158,7 @@ class Config(object):
         """
 
         """ Detect the linux distribution and set vars accordingly """
-        distro_name, distro_version, distro_alias = platform.linux_distribution(full_distribution_name=False)
+        distro_name, _, _ = platform.linux_distribution(full_distribution_name=False)
         for rpm_distro in self.rpm_distros:
             if rpm_distro == distro_name:
                 self.set_attributes_rpm()
