@@ -1,6 +1,7 @@
 import argparse
 import os
 import platform
+import re
 
 class Config(object):
 
@@ -9,6 +10,9 @@ class Config(object):
 
     # Supported dpkg-based distros
     deb_distros = ['debian', 'ubuntu']
+
+    default_release = '1'
+    default_version = '0.1'
 
     # Supported rpm-based distros
     rpm_distros = ['fedora', 'SuSE', 'OpenSUSE', 'redhat', 'centos']
@@ -39,17 +43,24 @@ class Config(object):
         for path in path_list:
             if not os.path.exists(path):
                 os.makedirs(path, 0700)
+    
+    def get_rpm_spec_from_file(self):
+        
+        rpm_spec_file_handle = open(self.rpm_spec_file_path, 'r')
+        rpm_spec_content = rpm_spec_file_handle.read()
+        rpm_spec_file_handle.close()
 
+        return rpm_spec_content 
 
-    def get_rpm_spec(self):
+    def get_rpm_spec_generated(self):
 
         content = ("Name: " + self.pkg_name + "\n"
-                    "Version: 0.1 \n"
-                    "Summary: " + self.summary + "\n"
-                    "Group: " + self.package_group + "\n"
-                    "License: " + self.license + "\n"
-                    "BuildArch: " + self.arch + "\n"
-                    "Release: 0 \n")
+                   "Version: " + self.version + "\n"
+                   "Summary: " + self.summary + "\n"
+                   "Group: " + self.package_group + "\n"
+                   "License: " + self.license + "\n"
+                   "BuildArch: " + self.arch + "\n"
+                   "Release: " + self.release + "\n")
 
         if self.requires:
             content += "Requires: " + self.requires + "\n"
@@ -81,8 +92,9 @@ class Config(object):
                     'rm -rf %{buildroot}' + "\n\n")
 
         # include stub sections to be used by packagers independent of this utility
-        content += ("%files\n" 
-                    "%defattr(-,-,-)\n\n" 
+        content += ("%files\n"
+                    "%defattr(-,-,-)\n"
+                    "/*\n\n" 
                     "%preun\n" 
                     "%postun\n" 
                     "%pre\n" 
@@ -102,7 +114,7 @@ class Config(object):
         
         parser.add_argument("pkg_name",                                     help="Package name")
         parser.add_argument("--arch",               metavar="<text>",       help="Package host architecture ('i686', 'x86_64' or 'noarch') - defaults to 'uname -m'")
-        parser.add_argument("--build_dir",          metavar="<dir>",        help="Build directory - this is where temporary files and the created package are stored - defaults to ~/pkg_factory")
+        parser.add_argument("--build_dir",          metavar="<dir>",        help="Build directory - this is where temporary files and the created package are stored - defaults to ~/pkg-factory")
         parser.add_argument("--build_verbose",                              help="Enables verbose output of low level package building steps", action='store_true')
         parser.add_argument("--description",        metavar="<text>",       help="Package description")
         parser.add_argument("--license",            metavar="<text>",       help="Software license type (default = 'Free')")
@@ -111,19 +123,20 @@ class Config(object):
         parser.add_argument("--rpm_no_auto_requirements",                   help="(RPM only) Don't automatically scan package content for implicit requirements like shared libraries", action='store_true')
         parser.add_argument("--rpm_no_strip_binaries",                      help="(RPM only) Don't automatically strip binaries in package content", action='store_true')
         parser.add_argument("--save_build_script",                          help="Stores pkg-factory script using given arguments", action='store_true')
+        parser.add_argument("--release",            metavar="<text>",       help="Explicitly set the package release number")
         parser.add_argument("--reset_config_file",                          help="Resets SPEC file using template", action='store_true')
         parser.add_argument("--requires",           metavar="<CSV>",        help="Comma separated list of required packages (dependencies)")
         parser.add_argument("--rsync_verbose",                              help="Enables verbose output of rsync", action='store_true')
         parser.add_argument("--summary",            metavar="<text>",       help="Package summary")
         parser.add_argument("--verbose",                                    help="Enables verbose output of high level processing", action='store_true')
+        parser.add_argument("--version",            metavar="<text>",       help="Explicitly set the package version number")
+
 
         """ TODO: enable these future optional arguments
         --post_install_script=  look for as build/post_install by default - if it's there, copy it into the SPEC file
         --post_uninstall_script=
         --pre_install_script=
         --pre_uninstall_script=
-        --version
-        --release
         """      
         
         """TODO: make sure either local_base_dir or git_url is set... """
@@ -148,11 +161,26 @@ class Config(object):
         distro_name, distro_version, distro_alias = platform.linux_distribution(full_distribution_name=False)
         for rpm_distro in self.rpm_distros:
             if rpm_distro == distro_name:
-                self.package_type = 'rpm'
+                self.set_attributes_rpm()
         
         for deb_distro in self.deb_distros:
             if deb_distro == distro_name:
-                self.package_type = 'deb'
+                self.set_attributes_deb()
+                
+        #If we got here, we didn't find a distro we support
+        return False
+
+
+    def set_attributes_deb(self):
+        
+        self.package_type = 'deb'
+        self.set_attributes_global()
+        self.pkg_full_name = self.pkg_name + '_' + self.version + '-' + self.release + '_' + self.arch
+
+        if self.verbose :
+            print "Full package name: " + self.pkg_full_name
+
+    def set_attributes_global(self):
 
         if self.verbose :
             print "Package Type: " + self.package_type
@@ -165,42 +193,14 @@ class Config(object):
             
         if self.verbose :
             print "Architecture: " + self.arch
-
-        self.pkg_full_name = self.pkg_name + '.' + self.arch
-        
-        if self.verbose :
-            print "Full package name: " + self.pkg_full_name
-
+     
         if not self.build_dir:
-            self.build_dir = os.path.expanduser("~") + "/pkg_factory"
+            self.build_dir = os.path.expanduser("~") + "/pkg-factory"
 
         self.build_script_dir = self.build_dir + "/scripts"
 
         if self.verbose :
             print "Build dir: " + self.build_dir      
-
-        if self.package_type == 'rpm':
-            
-            self.rpm_base_dir = self.build_dir + "/rpmbuild"
-            self.rpm_spec_dir = self.rpm_base_dir + "/SPECS"
-            self.rpm_spec_file = self.rpm_spec_dir + "/" + self.pkg_name + ".spec"
-            self.rpm_build_dir = self.rpm_base_dir + "/BUILD"
-            self.rpm_build_root_dir = self.rpm_base_dir + "/BUILDROOT"
-            self.rpm_rpms_dir = self.rpm_base_dir + "/RPMS/" + self.arch
-            self.rpm_sources_dir = self.rpm_base_dir + "/SOURCES"
-            self.rpm_srpms_dir = self.rpm_base_dir + "/SRPMS"
-            
-            if self.local_repo_dir:
-                self.local_repo_package_dir = self.local_repo_dir + "/Packages"
-            
-            if self.verbose :
-                print "RPM build dir: " + self.rpm_build_dir
-                print "RPM build root dir: " + self.rpm_build_root_dir
-                print "RPM sources dir: " + self.rpm_sources_dir
-                print "SRPM dir: " + self.rpm_srpms_dir
-            
-        if self.package_type == 'deb':
-            pass
 
         if self.reset_config_file  and self.verbose :
             print "Resetting package config file"
@@ -223,17 +223,17 @@ class Config(object):
         if self.verbose:
             print "Descripton: " + self.description
             
-        if not self.package_group:
-            self.package_group = 'none'
-
-        if self.verbose:
-            print "Package Group: " + self.package_group
-
         if not self.license:
             self.license = 'Free'
         
         if self.verbose :
             print "License: " + self.license
+
+        if not self.package_group:
+            self.package_group = 'none'
+
+        if self.verbose:
+            print "Package Group: " + self.package_group
             
         if not self.summary:
             self.summary = self.pkg_name
@@ -244,5 +244,68 @@ class Config(object):
         if self.save_build_script:
             self.build_script_path = self.build_script_dir + "/" + self.pkg_name
 
+    def set_attributes_rpm(self):
+        
+        self.package_type = 'rpm'
+        self.set_attributes_global()
+        self.rpm_top_dir = self.build_dir + "/rpmbuild"
+        self.rpm_spec_dir = self.rpm_top_dir + "/SPECS"
+        self.rpm_spec_file_path = self.rpm_spec_dir + "/" + self.pkg_name + ".spec"
+        self.rpm_build_dir = self.rpm_top_dir + "/BUILD"
+        self.rpm_build_root_dir = self.rpm_top_dir + "/BUILDROOT"
+        self.rpm_rpms_dir = self.rpm_top_dir + "/RPMS/" + self.arch
+        self.rpm_sources_dir = self.rpm_top_dir + "/SOURCES"
+        self.rpm_srpms_dir = self.rpm_top_dir + "/SRPMS"
+        
+        if os.path.exists(self.rpm_spec_file_path) and self.reset_config_file is not True:
 
- 
+            if self.verbose:
+                print "Getting SPEC file content from existing file: " + self.rpm_spec_file_path
+
+            self.rpm_spec_content = self.get_rpm_spec_from_file()
+            self.rpm_spec_content_lines = self.rpm_spec_content.split("\n")
+            
+            release_expr = re.compile("(?m)^Release:.*")
+            version_expr = re.compile("(?m)^Version:.*")
+            
+            if self.release:
+                print "User-supplied release number: " + self.release
+            else: 
+                self.prev_release = [elem for elem in self.rpm_spec_content_lines if release_expr.match(elem)][0].split()[1].split(".")[0]
+                self.release = str(int(self.prev_release) + 1)
+                print "Incrementing SPEC file release number from " + self.prev_release + " to " + self.release
+            
+            if self.version:
+                print "User-supplied version: " + self.version
+            else:
+                self.version = [elem for elem in self.rpm_spec_content_lines if version_expr.match(elem)][0].split()[1]
+                print "Using SPEC file, version is: " + self.version
+            
+            self.rpm_spec_content = re.sub(release_expr, "Release: " + self.release, self.rpm_spec_content, re.MULTILINE)        
+            self.rpm_spec_content = re.sub(version_expr, "Version: " + self.version, self.rpm_spec_content, re.MULTILINE)
+            
+        else:
+            
+            if not self.release:
+                self.release = self.default_release
+            
+            if not self.version:
+                self.version = self.default_version
+            
+            print "Getting SPEC file content from generator"
+            self.rpm_spec_content = self.get_rpm_spec_generated()
+               
+        self.pkg_full_name = self.pkg_name + '-' + self.version + '-' + self.release + '.' + self.arch
+        self.rpm_file_path = self.rpm_rpms_dir + "/" + self.pkg_full_name + ".rpm"
+        print "Full package name: " + self.pkg_full_name      
+       
+        if self.local_repo_dir:
+            self.local_repo_package_dir = self.local_repo_dir + "/Packages"
+        
+        if self.verbose :
+            print "RPM build dir: " + self.rpm_build_dir
+            print "RPM build root dir: " + self.rpm_build_root_dir
+            print "RPM file path (on build success): " + self.rpm_file_path
+            print "RPM sources dir: " + self.rpm_sources_dir
+            print "SRPM dir: " + self.rpm_srpms_dir
+

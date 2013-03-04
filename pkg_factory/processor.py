@@ -4,6 +4,7 @@ Created on Feb 27, 2013
 @author: joe
 '''
 import os
+import shutil
 import subprocess
 import sys
 
@@ -23,91 +24,127 @@ class Processor(object):
         # Create all the necessary dirs for the package build if they don't already exist
         self.config.create_build_dirs()
         
+        # Call the dpkg handler
         if self.config.package_type == 'deb':
-            print "Debian package building not yet implemented"
-            sys.exit(1)
+            self.build_deb()
 
+        # Call the rpm handler
         elif self.config.package_type == 'rpm':           
-
-            self.do_build_rpm()
+            self.build_rpm()
     
+        # Bail out - unsupported mode
         else:
             print "Package type not supported: " + self.config.package_type
             sys.exit(3);
         
-        
-
-            
-        
-        
-        """
-         Copy the created package to a local repository, resolving any missing dependencies
-         like directory creation
-        """
-#        if self.config.local_repo_dir:
-#            copy(self.config.rpm_file_path, self.config.local_repo_dir)
-
-        
-            
-
-
-
         if self.config.save_build_script:
             self.save_build_script()
             
         sys.exit(0)
 
-    def do_build_deb(self):
-        pass
+    def build_deb(self):
+        print "Debian package building not yet implemented"
+        sys.exit(1)
     
-    def do_build_rpm(self):
+    def build_rpm(self):
 
-        # Update or create the SPEC file as needed
-        if os.path.exists(self.config.rpm_spec_file) and self.config.reset_config_file is not True:
+        # Write the updated (or newly created) SPEC file
+        try:
 
-            print "RPM SPEC file exists: " + self.config.rpm_spec_file + " - updating"
-            spec_file_handle = open(self.config.rpm_spec_file)
-            spec_file_content = spec_file_handle.read()
+            rpm_spec_file_handle = open(self.config.rpm_spec_file_path, 'w')
+            rpm_spec_file_handle.write(self.config.rpm_spec_content)
+            rpm_spec_file_handle.close()
             
-            #TODO: modify spec file in place with new version number(s)
-            
-            
+        except TypeError as e:
 
-        else:
-            print "Creating RPM SPEC file: " + self.config.rpm_spec_file + " from template"
-            
-            try:
-                spec_file_handle = open(self.config.rpm_spec_file, 'w+')
-                spec_file_handle.write(self.config.get_rpm_spec())
-                spec_file_handle.close()
+            print "Could not write RPM SPEC file: " + self.config.rpm_spec_file_path + ": " + e.message 
+            sys.exit(2)
 
-            except Exception as e:
-                print "Could not create RPM SPEC file: " + self.config.rpm_spec_file + ": " + e.strerror 
-                sys.exit(2)
                     
-        # do the rsync here (if needed)
-        # do the package build here
+        # rsync the package content into the build root
+        try:
+
+            rsync_args = ['rsync',
+                          '-acE',
+                          '--exclude=.git*',
+                          '--exclude=".*.swp*',
+                          '--exclude=".svn*',
+                          '--exclude="nbproject/*']
+            
+            if self.config.build_verbose:
+                rsync_args.append('-vv')
+            else:
+                rsync_args.append('-q')
+            
+            rsync_args.append(self.config.local_base_dir + "/")    
+            rsync_args.append(self.config.rpm_build_root_dir + "/" + self.config.pkg_full_name)
+                
+            if self.config.verbose:
+                rsync_command = ""
+                
+                for arg in rsync_args:
+                    rsync_command += arg + " "
+                
+                print "Calling: " + rsync_command
+                
+            print "Synching build root with package content"
+            subprocess.check_call(rsync_args)
+        
+        except subprocess.CalledProcessError as e:
+
+            print "Failed to rsync package content into build root"
+            print " exited with return code: " + str(e.returncode)
+            sys.exit(4)
+        
+        
+        # do the package build
         try:
             
-            rpmbuild_args = [
-                             'rpmbuild',
-                             '-bb',
-                             '--target=' + self.config.arch,
-                             '--buildroot='+ self.config.rpm_build_root_dir,
-                             self.config.rpm_spec_file
-                             ]
+            rpmbuild_args = ['rpmbuild', '-bb',
+                             #'--buildroot='+ self.config.rpm_build_root_dir,
+                             "--define=_topdir " + self.config.rpm_top_dir,
+                             #'--target=' + self.config.arch,
+                             self.config.rpm_spec_file_path]
             
             if not self.config.build_verbose:
                 rpmbuild_args.append('--quiet')
 
+            if self.config.verbose:
+                rpmbuild_command = ""
+                
+                for arg in rpmbuild_args:
+                    rpmbuild_command += arg + " "
+                
+                print "Calling: " + rpmbuild_command
+
+            print "Building package"
             subprocess.check_call(rpmbuild_args)
-            #TODO: something with the rpmbuild cmd output - check self.config.verbose
             
         except subprocess.CalledProcessError as e:
             
             print "Failed to build RPM"
             print " exited with return code: " + str(e.returncode)
-            sys.exit(4)
+            sys.exit(5)
+
+        # Copy the created package to a local repository, creating directories as needed
+        if self.config.local_repo_dir:
+            
+            if not os.path.exists(self.config.local_repo_package_dir):
+                os.makedirs(self.config.local_repo_package_dir)
+
+            shutil.copy2(self.config.rpm_file_path, self.config.local_repo_package_dir)
+            
+            #TODO: think about implementing this natively in python, but that could trigger code churn here from upstream...
+            try:
+            
+                createrepo_args = ['createrepo', self.config.local_repo_dir]
+                subprocess.check_call(createrepo_args)
+                
+            except subprocess.CalledProcessError as e:
+                
+                print "Failed to build RPM repository metadata"
+                print " exited with return code: " + str(e.returncode)
+                sys.exit(4)
 
 
     def save_build_script(self):
@@ -124,81 +161,4 @@ class Processor(object):
             sys.exit(2)
             
         print "Saved build script as " + self.config.build_script_path
-"""        
-        
 
-
-# configure version info of this particular build
-typeset -i old_release_num=`grep 'Release:' $rpm_spec_file | cut -d' ' -f2 | cut -d'.' -f1`
-typeset -i new_release_num=$old_release_num+1
-new_release="${new_release_num}.$RF_DISTRO"
-build_version="`grep 'Version: ' $rpm_spec_file | cut -d' ' -f2`-$new_release"
-# configure metadata for rpm-build
-
-
-build_name="${rpm_name}-${build_version}.${rpm_arch}"
-
-
-
-rpm_file="$RF_BUILD_RPM_DIR/$rpm_arch/${build_name}.rpm"
-
-# auto-increment the release/build number in the SPEC file
-echo "Using release number: $new_release"
-sed -i -e "s/^Release:.*/Release: $new_release/g" $rpm_spec_file
-
-echo "Cleaning build dir"
-rm -rf $build_base/$rpm_mask
-rm -rf $build_home
-mkdir -p $build_home
-
-# since rpm-factory is designed for building packages from pre-compiled or no source,
-# all we need to to is rsync the base dir into a build directory for packaging.
-rsync \
---exclude=".git*" \
---exclude=".*.swp*" \
---exclude=".svn*" \
---exclude="nbproject/*" \
-$rsync_quiet \
--avvE $basedir/ $build_home
-
-if [ $? -ne 0 ]; then
-    
-    echo "rsync from $basedir to $build_home failed."
-    rf_exit 1
-fi
-
-# All prep work should be complete; build the package and move any older ones into a history
-# subdir.
-echo "Running rpmbuild"
-echo "  SPEC file: $rpm_spec_file"
-if [ ! -d $rpm_base/history ]; then mkdir -p $rpm_base/history; fi
-mv $rpm_base/$rpm_mask $rpm_base/history/ >/dev/null 2>&1
-
-# call rpmbuild to make the RPM
-rpmbuild \
--bb \
--buildroot=$build_home \
---target=$rpm_arch \
-$rpmbuild_quiet \
-$rpm_spec_file
-
-
-
-# Copy the package to the repository (if given) and rebuild its metadata
-if [ "$repo_dir" ]; then
-
-    repo_pkg_dir=$repo_dir/Packages
-
-    if [ ! -d $repo_pkg_dir ]; then
-
-        echo "Creating $repo_pkg_dir"
-        mkdir -p $repo_pkg_dir
-    fi
-
-    echo "Copying RPM file to repo"
-    echo "  $rpm_file => $repo_pkg_dir"
-    cp $rpm_file $repo_pkg_dir
-    cd $repo_dir
-    createrepo ./
-fi
-"""
